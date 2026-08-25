@@ -4,8 +4,11 @@ from pathlib import Path
 import pandas as pd
 
 AIHUB_DIR = Path(
-    r"C:\Users\SuHyeon\Downloads\020.주제별 텍스트 일상 대화 데이터\Training"
+    r"C:\Users\SuHyeon\Downloads\020.주제별 텍스트 일상 대화 데이터\01.데이터\1.Training"
 )
+
+if not AIHUB_DIR.exists():
+    raise FileNotFoundError(f"AIHub Training 경로를 찾을 수 없습니다: {AIHUB_DIR}")
 
 OUTPUT_PATH = Path("data/processed/aihub_normal.csv")
 OUTPUT_LIMIT = 3000
@@ -77,6 +80,12 @@ df = pd.DataFrame({
 })
 
 OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+if df.empty:
+    raise RuntimeError(
+        "추출된 메시지가 0개입니다. 출력 파일을 저장하지 않습니다. "
+        "AIHUB_DIR 또는 ZIP/JSON 구조를 확인하세요."
+    )
 
 df.to_csv(
     OUTPUT_PATH,

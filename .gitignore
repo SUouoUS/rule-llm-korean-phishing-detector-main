@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project datasets
+data/raw/**
+data/processed/**
+
+!data/raw/README.md
+!data/processed/README.md

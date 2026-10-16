@@ -50,7 +50,7 @@ def detect_with_llm(text: str) -> dict:
         think=False,
         options={
             "temperature": 0,
-            "num_predict": 160,
+            "num_predict": 256,
         },
     )
 

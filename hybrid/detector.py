@@ -31,7 +31,7 @@ def detect_with_hybrid(text: str) -> dict:
     llm_result = detect_with_llm(text)
 
     return{
-        "label": 1,
+        "label": llm_result["label"],
         "source": "llm",
         "rule_score": rule_score,
         "evidence": llm_result.get("evidence", []),

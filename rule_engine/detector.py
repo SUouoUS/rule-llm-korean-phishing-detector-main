@@ -1,6 +1,47 @@
 import re
 
 
+# --------------------------------------------------
+# Rule 개선 옵션 (2026-10-28 검증 후 기본 True로 확정)
+#   - Validation 2,450건: 네 조건 모두 동일 (주 데이터셋에 해당 패턴이 없음)
+#   - 택배 dev 1,045건: 오탐 300 → 0 / eval 1,364건: 오탐 599 → 0
+#   - Test 2,383건: Rule 점수가 바뀐 메시지 0건 (라벨 미사용으로 확인)
+# 기존(개선 전) 결과를 재현하려면 둘 다 False로 되돌린다.
+# --------------------------------------------------
+# 1) 택배사 공식 도메인 URL은 URL 위험 신호에서 제외
+USE_DOMAIN_ALLOWLIST = True
+# 2) "접수제한"처럼 안내 문구에 쓰인 "제한"은 긴급성 신호에서 제외
+USE_URGENCY_CONTEXT = True
+
+# 각 택배사 공식 홈페이지에서 확인한 도메인만 넣는다 (데이터를 보고 추가하지 않음).
+# 하위 도메인(www.coupang.com 등)은 허용, 흉내 낸 주소(coupang.com.evil.xyz)는 허용하지 않음.
+#
+# 확인 방법/날짜: 2026-10-28, 각 도메인 루트에 HTTPS 접속해 리다이렉트 주소와
+# 페이지 title이 해당 회사인지 확인.
+#   coupang.com      → www.coupang.com (쿠팡)
+#   cjlogistics.com  → "CJ Logistics" (CJ대한통운)
+#   hanjin.com       → "글로벌 종합물류기업 (주)한진"
+#   hanjin.co.kr     → www.hanjin.com 으로 리다이렉트 (한진 공식 별칭)
+#   epost.go.kr      → "인터넷우체국" (우정사업본부)
+#   lotteglogis.com  → "롯데글로벌로지스"
+#   ilogen.com       → 로젠택배
+#   kdexp.com        → 경동택배
+# SLX(slx.co.kr)는 평가 데이터에 등장하지만 오탐을 내지 않았고, 데이터를 보고
+# 목록을 늘리지 않는다는 원칙에 따라 넣지 않았다.
+OFFICIAL_DOMAINS = [
+    "coupang.com",
+    "cjlogistics.com",
+    "hanjin.com",
+    "hanjin.co.kr",
+    "epost.go.kr",
+    "lotteglogis.com",
+    "ilogen.com",
+    "kdexp.com",
+]
+
+URGENCY_CONTEXT_EXCLUDE = re.compile(r"접수\s?제한")
+
+
 URL_PATTERN = re.compile(
     r"""
     (?:
@@ -89,6 +130,24 @@ GAMBLING_KEYWORDS = [
     "배팅",
 ]
 
+def extract_host(url: str) -> str:
+    """URL 문자열에서 호스트(도메인) 부분만 추출한다."""
+
+    host = re.sub(r"^[a-z]+://", "", url.strip().lower())
+    host = re.split(r"[/?#:]", host, maxsplit=1)[0]
+    return host.strip(".")
+
+
+def is_official_domain(url: str) -> bool:
+    """공식 도메인이거나 그 하위 도메인이면 True."""
+
+    host = extract_host(url)
+    return any(
+        host == domain or host.endswith("." + domain)
+        for domain in OFFICIAL_DOMAINS
+    )
+
+
 def detect_url(text: str) -> dict:
     """일반 URL과 난독화된 도메인을 탐지한다."""
 
@@ -104,6 +163,13 @@ def detect_url(text: str) -> dict:
 
     matches = normal_matches + filtered_obfuscated
 
+    if USE_DOMAIN_ALLOWLIST:
+        matches = [
+            match
+            for match in matches
+            if not is_official_domain(match)
+        ]
+
     return {
         "detected": bool(matches),
         "matches": matches,
@@ -113,10 +179,15 @@ def detect_url(text: str) -> dict:
 def detect_urgency(text: str) -> dict:
     """메시지에서 긴급성 또는 즉각적인 행동을 유도하는 표현을 탐지한다."""
 
+    checked_text = text
+
+    if USE_URGENCY_CONTEXT:
+        checked_text = URGENCY_CONTEXT_EXCLUDE.sub(" ", text)
+
     matches = [
         keyword
         for keyword in URGENCY_KEYWORDS
-        if keyword in text
+        if keyword in checked_text
     ]
 
     return {

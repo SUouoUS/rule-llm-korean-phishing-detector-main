@@ -482,6 +482,32 @@ html[data-contrast="high"] .ocr-preview mark {
 }
 
 /* 소리로 듣기 */
+.speak-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin: 0 0 1.4rem;
+}
+.voice-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.voice-pick select {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.5rem;
+  min-height: 2.4rem;
+  max-width: 14rem;
+}
+
 .speak {
   display: inline-flex;
   align-items: center;
@@ -490,7 +516,6 @@ html[data-contrast="high"] .ocr-preview mark {
   font-weight: 700;
   min-height: 3rem;
   padding: 0.6rem 1.2rem;
-  margin: 0 0 1.4rem;
   background: var(--surface);
   color: var(--accent);
   border: 2px solid var(--accent);

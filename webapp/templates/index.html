@@ -122,12 +122,19 @@
     <p class="notice" id="result-notice" hidden></p>
 
     <!-- 브라우저에 내장된 음성으로 읽어 준다. 지원하지 않으면 숨긴다 (app.js) -->
-    <button type="button" class="speak" id="speak" hidden>
-      <svg class="speak-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 00-2.5-4v8a4.5 4.5 0 002.5-4zM14 2v2a8 8 0 010 16v2a10 10 0 000-20z"/>
-      </svg>
-      <span id="speak-label">소리로 듣기</span>
-    </button>
+    <div class="speak-row" id="speak-row" hidden>
+      <button type="button" class="speak" id="speak">
+        <svg class="speak-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 00-2.5-4v8a4.5 4.5 0 002.5-4zM14 2v2a8 8 0 010 16v2a10 10 0 000-20z"/>
+        </svg>
+        <span id="speak-label">소리로 듣기</span>
+      </button>
+
+      <span class="voice-pick" id="voice-pick-wrap" hidden>
+        <label for="voice-pick">목소리</label>
+        <select id="voice-pick"></select>
+      </span>
+    </div>
 
     <div class="block">
       <h3>검사한 문자</h3>

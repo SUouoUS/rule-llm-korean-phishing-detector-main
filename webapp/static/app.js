@@ -278,9 +278,68 @@ const speech = {
   queued: 0,
 };
 
-function koreanVoice() {
+/* 목소리는 이 PC에 깔린 것 중에서만 고를 수 있다. 브라우저가 음색을 만들지는 못한다.
+   그래서 여성 목소리를 먼저 고르되, 사람이 직접 고를 수 있는 칸도 같이 둔다.
+
+   이름으로 거르는 이유: SpeechSynthesisVoice 에는 성별 정보가 없다.
+   - SunHi / InJoon 은 엣지의 자연스러운(Natural) 한국어 목소리. SunHi 가 여성이다.
+   - Heami 는 윈도우 기본 한국어 여성 목소리.
+   - Yuna 는 macOS 한국어 여성 목소리.
+   - Google 한국의 는 크롬 한국어 여성 목소리. */
+const FEMALE_VOICE_HINTS = ["sunhi", "heami", "yuna", "sora", "google 한국", "female", "여성"];
+const MALE_VOICE_HINTS = ["injoon", "minsu", "male", "남성"];
+
+function koreanVoices() {
   const voices = window.speechSynthesis.getVoices() || [];
-  return voices.find((voice) => (voice.lang || "").toLowerCase().startsWith("ko")) || null;
+  return voices.filter((voice) => (voice.lang || "").toLowerCase().startsWith("ko"));
+}
+
+function voiceScore(voice) {
+  const name = `${voice.name} ${voice.voiceURI || ""}`.toLowerCase();
+  let score = 0;
+  if (FEMALE_VOICE_HINTS.some((hint) => name.includes(hint))) score += 10;
+  if (MALE_VOICE_HINTS.some((hint) => name.includes(hint))) score -= 10;
+  // 엣지의 Natural/Online 목소리가 훨씬 부드럽다.
+  if (name.includes("natural") || name.includes("online")) score += 4;
+  return score;
+}
+
+function koreanVoice() {
+  const chosen = restore("voiceName");
+  const voices = koreanVoices();
+  if (!voices.length) return null;
+
+  if (chosen) {
+    const match = voices.find((voice) => voice.name === chosen);
+    if (match) return match;
+  }
+  return voices.slice().sort((a, b) => voiceScore(b) - voiceScore(a))[0];
+}
+
+function fillVoicePicker() {
+  const voices = koreanVoices();
+  const wrap = el("voice-pick-wrap");
+  const picker = el("voice-pick");
+
+  // 한국어 목소리가 하나뿐이거나 없으면 고를 것이 없으므로 칸을 숨긴다.
+  if (voices.length < 2) {
+    wrap.hidden = true;
+    return;
+  }
+
+  const current = (koreanVoice() || {}).name;
+  picker.textContent = "";
+  voices
+    .slice()
+    .sort((a, b) => voiceScore(b) - voiceScore(a))
+    .forEach((voice) => {
+      const option = document.createElement("option");
+      option.value = voice.name;
+      option.textContent = voice.name;
+      if (voice.name === current) option.selected = true;
+      picker.appendChild(option);
+    });
+  wrap.hidden = false;
 }
 
 /* 결과 제목, 제목 아래 안내, "왜 위험한지" 설명을 차례로 모은다.
@@ -359,7 +418,8 @@ function startSpeaking() {
   chunks.forEach((chunk) => {
     const utterance = new SpeechSynthesisUtterance(chunk);
     utterance.lang = "ko-KR";
-    utterance.rate = 0.95; // 조금 천천히
+    utterance.rate = 0.92; // 천천히
+    utterance.pitch = 1.08; // 조금 높고 부드럽게
     if (voice) utterance.voice = voice;
     utterance.onend = () => {
       speech.queued -= 1;
@@ -371,18 +431,29 @@ function startSpeaking() {
 }
 
 function setupSpeech() {
-  const button = el("speak");
+  const row = el("speak-row");
   if (!speech.supported) {
-    button.hidden = true; // 지원하지 않는 브라우저에서는 아예 보이지 않는다
+    row.hidden = true; // 지원하지 않는 브라우저에서는 아예 보이지 않는다
     return;
   }
-  button.hidden = false;
-  button.addEventListener("click", () => {
+  row.hidden = false;
+
+  el("speak").addEventListener("click", () => {
     if (speech.speaking) stopSpeaking();
     else startSpeaking();
   });
-  // 크롬은 목소리 목록을 나중에 채우지만, 목소리는 읽기 시작할 때 고르므로
-  // 따로 기다릴 필요가 없다. 한국어 목소리가 없으면 lang 만 ko-KR 로 둔다.
+
+  el("voice-pick").addEventListener("change", (event) => {
+    store("voiceName", event.target.value);
+    stopSpeaking();
+  });
+
+  // 크롬과 엣지는 목소리 목록을 조금 늦게 채운다. 채워지면 고르는 칸을 다시 만든다.
+  fillVoicePicker();
+  if (typeof window.speechSynthesis.addEventListener === "function") {
+    window.speechSynthesis.addEventListener("voiceschanged", fillVoicePicker);
+  }
+
   window.addEventListener("beforeunload", stopSpeaking);
 }
 

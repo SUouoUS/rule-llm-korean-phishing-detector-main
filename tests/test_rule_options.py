@@ -38,6 +38,35 @@ URGENCY_CASES = [
 ]
 
 
+# 난독화 대응 옵션 (USE_HANGUL_DOMAIN / USE_SHORTENER_HOSTS / USE_TLD_VARIANTS)
+# 표기는 Train 미탐에서 가져왔다. Test 사례는 쓰지 않는다.
+OBFUSCATION_CASES = [
+    # 한글이 섞인 도메인 이름
+    ("심바.COM", True),
+    ("순천나이키.net", True),
+    ("미선나라.com", True),
+    # 스킴 없는 단축 URL
+    ("bit.ly/2UlmZmu", True),
+    ("cutt.ly/7huUroD", True),
+    # TLD 표기 변형: 글자 변형과 점 대체
+    ("종료벳세이프.ⓒom", True),
+    ("zag***◘ℂℴℳ", True),
+    ("실뱃쩜컴", True),
+    ("betend쩜net", True),
+    ("dpm-ko[쩜]com", True),
+    ("*** 。com", True),
+    # 일반 단어를 도메인으로 오인하지 않는다 (컴/콤/넷으로 시작하는 한국어)
+    ("오늘 샀어. 컴퓨터 좋네", False),
+    ("아이스 아메리카노. 콤비네이션 피자도", False),
+    ("주말에 넷플릭스 봤어", False),
+    ("회의는 3시. 컴백 일정 알려줘", False),
+    ("그 가게 장점은 커피", False),
+    ("내 컴퓨터 고장났어", False),
+    ("닷지 차 좋더라", False),
+    ("점심 뭐 먹지", False),
+]
+
+
 def main():
     d.USE_DOMAIN_ALLOWLIST = True
     d.USE_URGENCY_CONTEXT = True
@@ -60,13 +89,30 @@ def main():
         if not ok:
             failures.append(text)
 
+    print()
+
+    d.USE_HANGUL_DOMAIN = True
+    d.USE_SHORTENER_HOSTS = True
+    d.USE_TLD_VARIANTS = True
+
+    for text, expected in OBFUSCATION_CASES:
+        actual = d.detect_url(text)["detected"]
+        ok = actual == expected
+        print(f"{'OK  ' if ok else 'FAIL'} obf={actual!s:5} (기대 {expected!s:5}) {text}")
+        if not ok:
+            failures.append(text)
+
     d.USE_DOMAIN_ALLOWLIST = False
     d.USE_URGENCY_CONTEXT = False
+    d.USE_HANGUL_DOMAIN = False
+    d.USE_SHORTENER_HOSTS = False
+    d.USE_TLD_VARIANTS = False
 
+    total = len(URL_CASES) + len(URGENCY_CASES) + len(OBFUSCATION_CASES)
     print()
     if failures:
-        raise SystemExit(f"{len(failures)}건 실패")
-    print(f"전체 {len(URL_CASES) + len(URGENCY_CASES)}건 통과")
+        raise SystemExit(f"{len(failures)}/{total}건 실패")
+    print(f"전체 {total}건 통과")
 
 
 if __name__ == "__main__":

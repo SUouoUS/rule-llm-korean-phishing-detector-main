@@ -129,8 +129,20 @@ Test 미탐에서 본 희귀 TLD가 Train 미탐에 거의 없다:
 - **넣지 않는다**: 희귀 TLD. Train에 없으니 열거 대상이 아니고, 넣으면 Test 오염이다.
 - 💡 **이게 논문에 가장 유리하다**: 희귀 TLD는 LLM이 건진 108건 중 49%를 차지한 바로 그 영역이다. 즉 **"Rule은 Train에서 본 변형만 열거할 수 있고(열거의 한계), Train에 없던 변형은 LLM이 문맥으로 메꾼다"**를 같은 실험 안에서 동시에 보일 수 있다. 희귀 TLD를 규칙에 넣으면 이 논거가 사라진다.
 
+### 규칙 구현 완료 (2026-10-29), 검증 대기
+`rule_engine/detector.py`에 옵션 3개 추가, **기본 False** (검증 전이므로 현재 결과는 그대로).
+- `USE_HANGUL_DOMAIN` — `HANGUL_DOMAIN_PATTERN`. 도메인 이름에 한글이 섞인 주소 (Train 280건)
+- `USE_SHORTENER_HOSTS` — `SHORTENER_HOST_PATTERN`. Train에 나온 단축 호스트만 열거 (Train 218건)
+- `USE_TLD_VARIANTS` — `TLD_VARIANT_PATTERN`. 점 대체 + 글자 변형 (Train 103+47건)
+
+구현 시 판단 2개:
+- `TLD_VARIANT_PATTERN`에 `(?![가-힣])` 부정 전방탐색을 넣었다. 없으면 `"오늘 샀어. 컴퓨터 좋네"`가 `샀어` + `.` + `컴`으로 잡힌다(컴퓨터/콤비네이션/넷플릭스/컴백). 단위 테스트에 8건 등록.
+- **`좀côm`의 `좀`은 일부러 넣지 않았다.** Train 미탐의 점 대체 표기 목록에 `좀`이 없다(`. * , ◘ - · [ 。 쩜 ． ( % ▶ 닷 ☞ ① ◇`만 있음). Test에서 본 표기라서 넣으면 오염이다. `.소▶️ com`처럼 다중 기호가 섞인 것도 미탐으로 남겼다 → 잔존 격차의 일부로 보고한다.
+
+`tests/test_rule_options.py` **32건 통과** (기존 13 + 난독화 19: 잡아야 하는 11 + 일반 단어 오인 금지 8).
+
 ### 다음 순서
-1. 위 4개 유형으로 규칙 작성 (옵션 플래그로 추가, 기본 False)
+1. ~~규칙 작성~~ 완료. `python -m evaluation.evaluate_obfuscation_rules` 로 검증 (조건: base/hangul/shortener/tldvar/all, LLM 재호출 없음). 3단계 교정값도 같이 출력한다.
 2. Validation + delivery dev에서 **Recall 상승과 FPR 상승폭** 확인 — Rule 양성은 LLM을 건너뛰어 바로 "위험"이 되므로 FPR 악화는 3단계 교정값(98.6%)을 직접 깎는다
 3. 감당 가능하면 Test 1회 평가. **LLM 호출 0회** (Test 2,383건 전부에 LLM 판단이 저장돼 있고 Rule 설정과 무관하므로 `Hybrid = Rule OR 저장된 LLM`으로 재계산 가능)
 4. 주된 결과는 **"Train에서 열거한 변형은 잡히고, 새 변형은 여전히 남는다"는 잔존 격차**로 보고. F1 상승폭은 부차적으로 — 오염이 그쪽은 부풀리고 격차 쪽은 깎는다(보수적).

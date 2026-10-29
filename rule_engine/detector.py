@@ -13,6 +13,27 @@ USE_DOMAIN_ALLOWLIST = True
 # 2) "접수제한"처럼 안내 문구에 쓰인 "제한"은 긴급성 신호에서 제외
 USE_URGENCY_CONTEXT = True
 
+# --------------------------------------------------
+# 난독화 URL 대응 옵션 (2026-10-29 추가, 기본 False = 검증 전)
+#
+# Train 미탐 998건에서 추출한 표기 변형만 다룬다 (`evaluation/train_misses/`).
+# Test 사례를 보고 만든 규칙이 아니다 — 평가셋에 맞춘 규칙이 되지 않도록.
+#
+# ⚠️ 희귀/신규 TLD(.guru .sale .fund .wiki .us)는 일부러 넣지 않았다.
+#    Train 미탐에 1.3%(13건)뿐이고 .sale/.fund/.wiki/.us는 0건이어서
+#    Train만 보고는 도출할 수 없다. 그리고 그 영역은 LLM이 건진 사례의 49%를
+#    차지한다 → "Rule은 본 변형만 열거할 수 있고, 나머지는 LLM이 메꾼다"를
+#    같은 실험에서 보이기 위해 Rule 쪽에서 비워 둔다.
+#    같은 이유로 "스킴 없는 도메인 + 경로"처럼 TLD를 가리지 않는 일반 규칙도
+#    쓰지 않는다 (그 규칙은 희귀 TLD를 전부 흡수해 위 대비를 없앤다).
+# --------------------------------------------------
+# 3) 도메인 이름에 한글이 섞인 주소 (Train 미탐 280건, 28.1%)
+USE_HANGUL_DOMAIN = False
+# 4) 스킴 없는 단축 URL 호스트 (Train 미탐 218건, 21.8%)
+USE_SHORTENER_HOSTS = False
+# 5) TLD 표기 변형: 점 대체 + 문자 변형 (Train 미탐 103 + 47건)
+USE_TLD_VARIANTS = False
+
 # 각 택배사 공식 홈페이지에서 확인한 도메인만 넣는다 (데이터를 보고 추가하지 않음).
 # 하위 도메인(www.coupang.com 등)은 허용, 흉내 낸 주소(coupang.com.evil.xyz)는 허용하지 않음.
 #
@@ -71,6 +92,49 @@ OBFUSCATED_DOMAIN_PATTERN = re.compile(
     """,
     re.IGNORECASE | re.VERBOSE,
 )
+
+# --------------------------------------------------
+# 난독화 URL 패턴 (위 옵션 3~5가 켜질 때만 쓴다)
+# 표기 목록 출처: evaluation/train_misses/ (Train 미탐 998건에서 추출)
+# --------------------------------------------------
+
+# 3) 도메인 이름에 한글이 섞인 주소: 심바.COM, 레옹.net, 순천나이키.net
+#    기존 URL_PATTERN은 TLD 앞을 [A-Za-z0-9.-]로 제한해 이들을 놓쳤다.
+HANGUL_DOMAIN_PATTERN = re.compile(
+    r"[A-Za-z0-9가-힣_-]*[가-힣][A-Za-z0-9가-힣._-]*"
+    r"\.(?:com|net|org|kr|co\.kr)"
+    r"(?:/[^\s]*)?",
+    re.IGNORECASE,
+)
+
+# 4) 스킴 없는 단축 URL. Train 미탐에 나온 호스트만 열거한다 (.ly가 219회).
+#    TLD를 가리지 않는 일반 규칙을 쓰지 않는 이유는 위 옵션 주석 참고.
+SHORTENER_HOST_PATTERN = re.compile(
+    r"\b(?:bit|cutt|vo|goo|tiny|buly|dooo|han|kko|is|lnk|me2)"
+    r"\s?\.\s?(?:ly|la|gl|gd|us|cc|do|kr)"
+    r"(?:/[^\s]*)?",
+    re.IGNORECASE,
+)
+
+# 5) TLD 표기 변형. 글자 변형(ⓒⓞⓜ, ℂℴℳ, 컴, 콤)과 점 대체(쩜, 。, ，, ◘, *)를
+#    함께 받는다. 기존 패턴은 TLD를 리터럴 com|net|org|kr로만 받았다.
+_C = r"[cCｃ⒞ⓒℂСсⅽ]"
+_O = r"[oOｏⓞℴОо0０]"
+_M = r"[mMｍⓜℳМм⒨]"
+_N = r"[nNｎⓝℕНн]"
+_E = r"[eEｅⓔℰЕе]"
+_T = r"[tTｔⓣТт]"
+
+_TLD_SPELLING = rf"(?:{_C}\s?{_O}\s?{_M}|{_N}\s?{_E}\s?{_T}|컴|콤|넷)"
+# 점 대체: 기호(앞뒤 공백 허용) 또는 한글 치환(쩜/닷/점, [쩜]처럼 괄호에 싸인 경우 포함)
+_DOT_SPELLING = r"(?:\s?[.．。，､·ㆍ*◘▶☞◇\[\(]\s?|[\[\(]?\s?[쩜닷점]\s?[\]\)]?)"
+
+# 뒤에 한글이 더 붙으면 "컴퓨터", "콤비", "넷플릭스" 같은 일반 단어이므로 제외한다.
+TLD_VARIANT_PATTERN = re.compile(
+    rf"[A-Za-z0-9가-힣*_-]{{2,}}{_DOT_SPELLING}{_TLD_SPELLING}(?![가-힣])",
+    re.IGNORECASE,
+)
+
 
 URGENCY_KEYWORDS = [
     "긴급",
@@ -162,6 +226,19 @@ def detect_url(text: str) -> dict:
     ]
 
     matches = normal_matches + filtered_obfuscated
+
+    # 난독화 대응 옵션. 이미 잡힌 주소와 겹쳐도 결과는 같으므로 그대로 더한다.
+    for enabled, pattern in (
+        (USE_HANGUL_DOMAIN, HANGUL_DOMAIN_PATTERN),
+        (USE_SHORTENER_HOSTS, SHORTENER_HOST_PATTERN),
+        (USE_TLD_VARIANTS, TLD_VARIANT_PATTERN),
+    ):
+        if enabled:
+            matches += [
+                match
+                for match in pattern.findall(text)
+                if not any(match in existing for existing in matches)
+            ]
 
     if USE_DOMAIN_ALLOWLIST:
         matches = [

@@ -1,0 +1,7 @@
+﻿scope,a,b,b_only_right,a_only_right,discordant,p_value
+base,Rule,Hybrid (base),108,53,161,1.7460281640801083e-05
+base,LLM,Hybrid (base),329,12,341,1.9657706573866023e-81
+final,Rule,Hybrid (final),18,53,71,3.884758279363993e-05
+final,LLM,Hybrid (final),377,12,389,3.459146111519873e-95
+base→final,Rule base,Rule final,138,0,138,5.739718509874451e-42
+base→final,Hybrid base,Hybrid final,48,0,48,7.105427357601002e-15

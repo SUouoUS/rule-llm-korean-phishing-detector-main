@@ -75,17 +75,15 @@ body {
   border: 3px solid var(--accent);
 }
 
-/* 상단 — 파란 줄은 화면 전체 너비로 간다.
-   긴 주소가 줄바꿈 없이 들어오면 가로 스크롤이 생기면서 줄이 중간에 끊겨 보이므로,
-   아래 overflow-wrap 규칙들과 함께 봐야 한다. */
+/* 상단 — 파란 줄은 본문과 같은 너비까지만 긋는다 (화면 끝까지 늘리지 않는다). */
 .topbar {
   width: 100%;
   background: var(--surface);
-  border-bottom: 3px solid var(--accent);
 }
 .topbar-inner {
   max-width: 48rem;
   margin: 0 auto;
+  border-bottom: 3px solid var(--accent);
   padding: 0.9rem 1rem;
   display: flex;
   flex-wrap: wrap;

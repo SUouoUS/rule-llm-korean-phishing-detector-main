@@ -93,11 +93,24 @@ function say(message) {
   el("live-status").textContent = message;
 }
 
+/* 단계 번호는 실제로 하는 일만 세어서 매긴다.
+   사진을 넣었으면  1 글자 읽기 / 2 위험 신호 검사 / 3 한 번 더 보기
+   글자를 넣었으면  1 위험 신호 검사 / 2 한 번 더 보기 */
+function numberSteps(withOcr) {
+  const order = withOcr
+    ? ["step-ocr", "step-rule", "step-llm"]
+    : ["step-rule", "step-llm"];
+  order.forEach((id, index) => {
+    el(id).querySelector(".step-no").textContent = `${index + 1}단계`;
+  });
+}
+
 function showProgress(withOcr) {
   el("progress").hidden = false;
   setStep("step-ocr", "기다리는 중", "wait", withOcr);
   setStep("step-rule", "기다리는 중", "wait", true);
   setStep("step-llm", "기다리는 중", "wait", false);
+  numberSteps(withOcr);
   say("");
 }
 

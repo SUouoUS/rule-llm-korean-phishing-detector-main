@@ -22,6 +22,7 @@ const state = {
   meta: null,
   text: "",
   busy: false,
+  level: null,
 };
 
 /* ---------- 글씨 크기 / 고대비 (저장 실패해도 동작) ---------- */
@@ -191,6 +192,7 @@ function renderReasons(reasons) {
 function renderVerdict(verdict, notice) {
   const result = el("result");
   result.dataset.level = verdict.level;
+  state.level = verdict.level;
   el("verdict-icon").innerHTML = ICONS[verdict.icon] || "";
   el("verdict-badge").textContent = verdict.badge;
   el("result-title").textContent = verdict.headline;
@@ -208,6 +210,12 @@ function renderActions() {
   const wrap = el("action-buttons");
   wrap.textContent = "";
   el("guidance").hidden = true;
+
+  // 위험 신호를 찾지 못했을 때는 "이미 무엇을 하셨나요?"를 묻지 않는다.
+  // 물어볼 일이 없는데 물으면 공연히 불안하게 만든다.
+  const needed = state.level === "danger" || state.level === "caution";
+  el("actions-block").hidden = !needed;
+  if (!needed) return;
 
   state.meta.actions.forEach((action) => {
     const button = document.createElement("button");
@@ -391,6 +399,8 @@ async function init() {
     el("result").hidden = true;
     el("progress").hidden = true;
     el("ocr-edit").hidden = true;
+    el("actions-block").hidden = true;
+    state.level = null;
     clearError();
     el("message").focus();
     window.scrollTo({ top: 0, behavior: "smooth" });

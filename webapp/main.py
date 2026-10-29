@@ -66,8 +66,22 @@ VERDICTS = {
 
 apply_final_config()
 
+
+class NoCacheStatic(StaticFiles):
+    """CSS와 JS를 브라우저가 캐시하지 않게 한다.
+
+    고친 내용이 반영되지 않아 "그대로인데"로 보이는 일을 막는다. 혼자 쓰는
+    로컬 화면이라 캐시로 아낄 것이 없다.
+    """
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+
 app = FastAPI(title="문자 사기 확인", docs_url=None, redoc_url=None)
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/static", NoCacheStatic(directory=STATIC_DIR), name="static")
 
 
 class TextRequest(BaseModel):
@@ -94,7 +108,7 @@ def _validate_text(text: str) -> str | JSONResponse:
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(INDEX_PATH)
+    return FileResponse(INDEX_PATH, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/meta")

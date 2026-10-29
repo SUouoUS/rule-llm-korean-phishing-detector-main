@@ -45,6 +45,11 @@ html[data-contrast="high"] {
 
 * { box-sizing: border-box; }
 
+/* display 를 따로 지정한 요소에서도 hidden 속성이 듣게 한다.
+   브라우저 기본값은 [hidden]{display:none} 이지만, 작성자가 쓴 .step{display:flex}
+   같은 규칙이 그것을 덮어써서 숨긴 요소가 계속 보인다. */
+[hidden] { display: none !important; }
+
 html { font-size: var(--base); }
 
 body {
@@ -203,7 +208,7 @@ input[type="file"] {
 }
 .upload input[type="file"] {
   display: block;
-  margin-top: 0.7rem;
+  margin-top: 1.1rem;
 }
 /* 파일 선택 칸과 안내 문구가 붙어 보이지 않게 띄운다 */
 .upload .notice {

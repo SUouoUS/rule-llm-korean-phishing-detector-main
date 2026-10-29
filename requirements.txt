@@ -5,3 +5,11 @@ scikit-learn
 streamlit
 openai
 python-dotenv
+ollama
+fastapi
+uvicorn
+python-multipart
+pillow
+
+# 캡처 이미지에서 글자를 읽는 기능에만 필요 (없어도 텍스트 확인은 됩니다)
+# easyocr

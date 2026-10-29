@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ko" data-size="normal">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>문자 사기 확인</title>
+<meta name="description" content="받은 문자가 사기 문자인지 확인하고, 위험한 부분을 쉬운 말로 알려 드립니다.">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<a class="skip" href="#main">본문으로 바로 가기</a>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <p class="brand">문자 사기 확인</p>
+    <div class="prefs">
+      <fieldset class="pref-group">
+        <legend>글씨 크기</legend>
+        <button type="button" class="pref" data-size-set="normal" aria-pressed="true">보통</button>
+        <button type="button" class="pref" data-size-set="large" aria-pressed="false">크게</button>
+        <button type="button" class="pref" data-size-set="xlarge" aria-pressed="false">아주 크게</button>
+      </fieldset>
+      <button type="button" class="pref pref-contrast" id="contrast-toggle" aria-pressed="false">
+        고대비
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- 첫 화면 -->
+  <section class="panel" id="intro">
+    <h1>받은 문자가 사기인지 확인해 드려요</h1>
+    <p class="lede">
+      문자를 붙여 넣으면 위험한 부분을 찾아 쉬운 말로 알려 드립니다.
+      확인은 이 컴퓨터 안에서만 하고, 넣은 문자는 저장하지 않습니다.
+    </p>
+
+    <form id="check-form" novalidate>
+      <label class="field-label" for="message">문자 내용</label>
+      <p class="field-help" id="message-help">받은 문자를 그대로 붙여 넣어 주세요.</p>
+      <textarea id="message" rows="7" aria-describedby="message-help"
+                placeholder="예) [Web발신] 택배 주소가 잘못되어 배송이 어렵습니다. 주소 확인 ..."></textarea>
+
+      <div class="upload" id="upload-area">
+        <p class="field-label">캡처 사진으로 확인하기</p>
+        <p class="field-help" id="file-help">문자를 찍은 사진을 올리면 글자를 읽어 드립니다.</p>
+        <input type="file" id="image" accept="image/png,image/jpeg,image/webp,image/bmp"
+               aria-describedby="file-help">
+        <p class="notice" id="ocr-unavailable" hidden>
+          이 컴퓨터에는 사진에서 글자를 읽는 기능이 설치되지 않았어요. 문자를 직접 붙여 넣어 주세요.
+        </p>
+      </div>
+
+      <button type="submit" class="primary" id="submit">검사하기</button>
+      <p class="error" id="form-error" role="alert" hidden></p>
+    </form>
+
+    <div class="samples">
+      <h2>예시로 먼저 확인해 보기</h2>
+      <div class="sample-buttons" id="sample-buttons"></div>
+    </div>
+  </section>
+
+  <!-- 진행 상황 -->
+  <section class="panel" id="progress" hidden aria-labelledby="progress-title">
+    <h2 id="progress-title">검사하고 있어요</h2>
+    <ol class="steps" id="steps">
+      <li class="step" id="step-ocr" hidden>
+        <span class="step-no">1단계</span>
+        <span class="step-name">사진에서 글자 읽기</span>
+        <span class="step-state" data-state="wait">기다리는 중</span>
+      </li>
+      <li class="step" id="step-rule">
+        <span class="step-no">2단계</span>
+        <span class="step-name">위험 신호 검사</span>
+        <span class="step-state" data-state="wait">기다리는 중</span>
+      </li>
+      <li class="step" id="step-llm" hidden>
+        <span class="step-no">3단계</span>
+        <span class="step-name">한 번 더 꼼꼼히 보기</span>
+        <span class="step-state" data-state="wait">기다리는 중</span>
+      </li>
+    </ol>
+    <p class="live" id="live-status" role="status" aria-live="polite"></p>
+  </section>
+
+  <!-- OCR 결과 고치기 -->
+  <section class="panel" id="ocr-edit" hidden aria-labelledby="ocr-edit-title">
+    <h2 id="ocr-edit-title">읽은 글자를 확인해 주세요</h2>
+    <p class="notice" id="ocr-notice"></p>
+    <label class="field-label" for="ocr-text">사진에서 읽은 글자</label>
+    <p class="field-help" id="ocr-help">틀린 글자가 있으면 고쳐 주세요. 다 고치면 아래 단추를 누르세요.</p>
+    <textarea id="ocr-text" rows="7" aria-describedby="ocr-help"></textarea>
+    <button type="button" class="primary" id="ocr-confirm">이 내용으로 검사하기</button>
+  </section>
+
+  <!-- 결과 -->
+  <section class="panel result" id="result" hidden aria-labelledby="result-title">
+    <div class="verdict" id="verdict">
+      <span class="verdict-icon" id="verdict-icon" aria-hidden="true"></span>
+      <div class="verdict-text">
+        <p class="verdict-badge" id="verdict-badge"></p>
+        <h2 class="verdict-headline" id="result-title" tabindex="-1"></h2>
+      </div>
+    </div>
+
+    <p class="notice" id="result-notice" hidden></p>
+
+    <div class="block">
+      <h3>검사한 문자</h3>
+      <p class="field-help">사기 문자에서 자주 쓰이는 부분에 표시했어요.</p>
+      <div class="message-view" id="message-view"></div>
+    </div>
+
+    <div class="block">
+      <h3>위험 신호 검사 결과</h3>
+      <ul class="checks" id="checks"></ul>
+    </div>
+
+    <div class="block" id="reasons-block">
+      <h3>왜 위험한지</h3>
+      <ul class="reasons" id="reasons"></ul>
+    </div>
+
+    <div class="block">
+      <h3>이미 무엇을 하셨나요?</h3>
+      <p class="field-help">해당하는 것을 누르면 할 일을 순서대로 알려 드려요.</p>
+      <div class="action-buttons" id="action-buttons"></div>
+      <div class="guidance" id="guidance" hidden>
+        <h4 id="guidance-heading"></h4>
+        <ol id="guidance-steps"></ol>
+      </div>
+    </div>
+
+    <button type="button" class="secondary" id="restart">다른 문자 확인하기</button>
+  </section>
+
+</main>
+
+<footer class="sitefoot">
+  <p>
+    이 확인은 참고용입니다. 위험 신호를 찾지 못했더라도 사기 문자가 아니라고 단정할 수는 없습니다.
+    의심되면 가족이나 공식 기관에 꼭 확인하세요.
+  </p>
+  <p>보이스피싱·스미싱 통합신고 1394 · 긴급신고 112 · 해킹·스팸 상담 118 · 금융감독원 1332</p>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -205,6 +205,26 @@ input[type="file"] {
 .upload .notice {
   margin: 1.2rem 0 0;
 }
+.upload .notice p { margin: 0; }
+
+/* 서비스를 띄운 사람에게만 필요한 안내. 실제 이용자에게는 군더더기이므로 작게 둔다. */
+.admin-note {
+  margin-top: 0.8rem !important;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.admin-note code {
+  display: inline-block;
+  font-family: Consolas, "D2Coding", monospace;
+  background: #eef0f4;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.15rem 0.45rem;
+  margin: 0.3rem 0;
+  user-select: all;
+}
 
 button.primary,
 button.secondary {

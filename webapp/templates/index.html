@@ -49,9 +49,14 @@
         <p class="field-help" id="file-help">문자를 찍은 사진을 올리면 글자를 읽어 드립니다.</p>
         <input type="file" id="image" accept="image/png,image/jpeg,image/webp,image/bmp"
                aria-describedby="file-help">
-        <p class="notice" id="ocr-unavailable" hidden>
-          이 컴퓨터에는 사진에서 글자를 읽는 기능이 설치되지 않았어요. 문자를 직접 붙여 넣어 주세요.
-        </p>
+        <div class="notice" id="ocr-unavailable" hidden>
+          <p>이 컴퓨터에는 사진에서 글자를 읽는 기능이 설치되지 않았어요. 문자를 직접 붙여 넣어 주세요.</p>
+          <p class="admin-note">
+            이 화면을 띄운 분께: 아래 명령을 한 번 실행한 뒤 서버를 다시 시작하면 사진 기능을 쓸 수 있어요.
+            <code>pip install easyocr</code>
+            내려받을 파일이 커서 몇 분 걸립니다.
+          </p>
+        </div>
       </div>
 
       <button type="submit" class="primary" id="submit">검사하기</button>

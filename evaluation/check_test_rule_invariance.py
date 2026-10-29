@@ -25,8 +25,22 @@ OUTPUT_PATH = PROJECT_ROOT / "evaluation" / "test_rule_invariance_changed.csv"
 
 
 def set_config(allowlist: bool, context: bool) -> None:
+    """이 스크립트는 택배 allowlist와 접수제한 문맥의 영향만 본다.
+
+    난독화 옵션은 항상 꺼 둔다 (detector 기본값이 바뀌어도 같은 비교가 되도록).
+    난독화 규칙의 Test 영향은 `evaluation/evaluate_test_final.py`에서 본다.
+    """
+
     rule_detector.USE_DOMAIN_ALLOWLIST = allowlist
     rule_detector.USE_URGENCY_CONTEXT = context
+    for flag in (
+        "USE_HANGUL_DOMAIN",
+        "USE_SHORTENER_HOSTS",
+        "USE_TLD_VARIANTS",
+        "USE_GENERAL_TLD",
+        "USE_GENERAL_TLD_STRICT",
+    ):
+        setattr(rule_detector, flag, False)
 
 
 URGENCY_CONTEXT_RE = r"접수\s?제한"

@@ -32,6 +32,7 @@ from pathlib import Path
 
 import pandas as pd
 
+import rule_engine.detector as rule_detector
 from evaluation.evaluate_rule_thresholds import predict_score
 from llm.detector import detect_with_llm
 from rule_engine.detector import analyze_message
@@ -117,7 +118,18 @@ def build_cases() -> pd.DataFrame:
     for column in ("rule_prediction", "llm_prediction", "hybrid_prediction"):
         test[column] = stored[column].values
 
-    # Rule 개선 옵션이 Test 예측을 바꾸지 않았는지 다시 확인한다.
+    # 이 분석은 저장된 1차 평가 예측을 설명하는 것이므로, 그때와 같은 Rule 설정
+    # (난독화 옵션 꺼짐)으로 고정한다. detector의 기본값이 바뀌어도 영향받지 않는다.
+    for flag in (
+        "USE_HANGUL_DOMAIN",
+        "USE_SHORTENER_HOSTS",
+        "USE_TLD_VARIANTS",
+        "USE_GENERAL_TLD",
+        "USE_GENERAL_TLD_STRICT",
+    ):
+        setattr(rule_detector, flag, False)
+
+    # Rule 설정이 Test 예측을 바꾸지 않았는지 다시 확인한다.
     # (run_id 해시보다 강한 검사: 지금 코드로 다시 계산해 저장값과 맞춰 본다)
     test["rule_score"] = test["content"].apply(predict_score)
     recomputed = test["rule_score"].ge(1).astype(int)

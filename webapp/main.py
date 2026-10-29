@@ -187,24 +187,33 @@ def check_rule(request: TextRequest):
         return text
 
     score = predict_score(text)
-    detail = inspect(text)
     needs_llm = score < RULE_THRESHOLD
 
-    # 사진 입력일 때만: 주소 규칙이 못 잡았는데 https/www 가 보이면 알려 준다.
-    url_found = any(check["found"] for check in detail["checks"] if check["key"] == "url")
+    # 평가 대상 시스템 밖의 웹앱 전용 보정: 사진 입력일 때만, 주소 규칙이 못 잡았는데
+    # https/www 머리말이 보이면 "있는 것 같음"으로 표시하고 그 줄에 형광펜을 칠한다.
+    # 점수와 Rule 판정은 건드리지 않는다.
+    first = inspect(text)
+    url_found = any(check["found"] for check in first["checks"] if check["key"] == "url")
     broken_url = request.from_image and not url_found and url_hints.has_broken_url(text)
 
-    reasons = list(detail["reasons"])
+    detail = inspect(text, url_hints.suspect_spans(text)) if broken_url else first
+
+    checks = detail["checks"]
     if broken_url:
-        reasons.append(url_hints.hint_reason())
+        for check in checks:
+            if check["key"] == "url":
+                check["state"] = "unsure"
+                check["label"] = url_hints.CHECK_UNSURE_LABEL
 
     payload = {
         "text": text,
         "rule_score": score,
         "rule_positive": not needs_llm,
         "needs_llm": needs_llm,
-        "checks": detail["checks"],
-        "reasons": reasons,
+        "checks": checks,
+        # '왜 위험한지'에는 깨진 주소 설명을 넣지 않는다. 같은 말을 두 번 하지
+        # 않도록 그 설명은 결과 제목 아래 notice 한 곳에만 둔다.
+        "reasons": detail["reasons"],
         "segments": detail["segments"],
         "broken_url": broken_url,
         "notice": url_hints.RESULT_NOTICE if broken_url else None,
@@ -215,10 +224,16 @@ def check_rule(request: TextRequest):
 
 
 def _with_broken_url(payload: dict, text: str, from_image: bool) -> dict:
-    """사진 입력에서 주소가 깨져 보이면, '신호 없음'을 '주의'까지만 올린다.
+    """사진 입력에서 주소가 깨져 보이면 '신호 없음'을 '주의'까지만 올린다.
 
-    '위험'으로 올리지는 않는다. 정상 택배 알림 사진도 주소가 깨질 수 있고, 그때는
-    공식 도메인 허용이 동작할 수 없어 애먼 문자를 위험으로 몰 수 있기 때문이다.
+    **평가 대상 시스템 밖의 웹앱 전용 보정이다.** `rule_engine`, `hybrid`, 평가
+    코드는 건드리지 않으며, 평가에 쓴 메시지는 모두 글자 입력이었으므로 이 보정이
+    보고된 수치에 영향을 주지 않는다.
+
+    '위험'으로는 올리지 않는다. 정상 택배 알림 사진도 주소가 깨질 수 있고, 그때는
+    공식 도메인 허용이 동작할 수 없어 애먼 문자를 위험으로 몰게 되기 때문이다.
+
+    이유 설명은 notice 한 곳에만 둔다 ('왜 위험한지' 목록에 또 넣지 않는다).
     """
 
     if not (from_image and url_hints.has_broken_url(text)):
@@ -227,7 +242,6 @@ def _with_broken_url(payload: dict, text: str, from_image: bool) -> dict:
     payload["broken_url"] = True
     if payload["verdict"]["level"] == "clear":
         payload["verdict"] = VERDICTS["caution"]
-    payload.setdefault("reasons", []).append(url_hints.hint_reason())
     payload["notice"] = url_hints.RESULT_NOTICE
     return payload
 

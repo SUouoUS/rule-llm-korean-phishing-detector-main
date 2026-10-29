@@ -134,8 +134,12 @@ def _segments(text: str, spans: list) -> list:
     return pieces or [{"text": text, "mark": False}]
 
 
-def inspect(text: str) -> dict:
-    """Rule 분석 결과를 화면에 쓸 형태로 바꾼다."""
+def inspect(text: str, extra_spans: list | None = None) -> dict:
+    """Rule 분석 결과를 화면에 쓸 형태로 바꾼다.
+
+    `extra_spans`는 Rule이 찾은 것 외에 형광펜을 칠할 구간이다. 사진에서 읽은
+    글자의 '깨진 주소' 줄을 표시하는 데 쓴다 (webapp/url_hints.py).
+    """
 
     analysis = analyze_message(text)
 
@@ -150,6 +154,9 @@ def inspect(text: str) -> dict:
                 "key": key,
                 "name": short_name,
                 "found": found,
+                # "found" / "none" / "unsure" — unsure 는 사진에서 주소를 못 읽은 경우로,
+                # webapp/main.py 가 따로 표시한다.
+                "state": "found" if found else "none",
                 "matches": matches,
             }
         )
@@ -183,7 +190,7 @@ def inspect(text: str) -> dict:
             }
         )
 
-    spans = _merge(_spans_for(text, needles))
+    spans = _merge(_spans_for(text, needles) + list(extra_spans or []))
     return {
         "checks": checks,
         "reasons": reasons,

@@ -164,10 +164,13 @@ function renderChecks(checks) {
     const item = document.createElement("li");
     const name = document.createElement("span");
     name.textContent = check.name;
+    // 세 가지 상태: 찾음 / 없음 / 있는 것 같음(사진에서 주소를 정확히 못 읽음)
+    const state = check.state || (check.found ? "found" : "none");
+    const labels = { found: "찾음", none: "없음" };
     const found = document.createElement("span");
     found.className = "check-state";
-    found.dataset.found = String(check.found);
-    found.textContent = check.found ? "찾음" : "없음";
+    found.dataset.found = state;
+    found.textContent = check.label || labels[state] || "없음";
     item.append(name, found);
     list.appendChild(item);
   });

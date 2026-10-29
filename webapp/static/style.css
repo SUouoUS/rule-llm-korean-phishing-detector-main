@@ -375,8 +375,10 @@ html[data-contrast="high"] .message-view mark {
 }
 .checks li:last-child { border-bottom: 0; }
 .check-state { font-weight: 700; white-space: nowrap; }
-.check-state[data-found="true"] { color: var(--danger); }
-.check-state[data-found="false"] { color: var(--ink-soft); }
+.check-state[data-found="found"] { color: var(--danger); }
+.check-state[data-found="none"] { color: var(--ink-soft); }
+/* 사진에서 주소를 정확히 못 읽은 경우. 찾음도 없음도 아니다. */
+.check-state[data-found="unsure"] { color: var(--caution); }
 
 .reasons { list-style: none; margin: 0; padding: 0; }
 .reasons li {

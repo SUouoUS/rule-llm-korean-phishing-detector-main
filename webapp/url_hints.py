@@ -24,12 +24,18 @@ import re
 # 주소의 머리말. 뒤가 아무리 깨져도 이 글자는 비교적 잘 읽힌다.
 URL_HEAD = re.compile(r"(?:https?\s*[:：]?\s*/*|www\s*[.．]?)", re.IGNORECASE)
 
-HINT_TITLE = "인터넷 주소가 있는 것 같아요"
-HINT_BODY = (
-    "사진에서 주소를 정확히 읽지 못했어요. 주소처럼 보이는 글자가 있으니 누르지 마세요."
-)
+# 위험 신호 검사 목록에서 '인터넷 주소' 줄에 쓸 말.
+# 규칙은 주소를 못 잡았지만 머리말은 보였으므로 "없음"도 "찾음"도 아니다.
+CHECK_UNSURE_LABEL = "있는 것 같음 (정확히 못 읽음)"
+
 EDIT_NOTICE = "이 부분은 인터넷 주소 같아요. 사진과 다르면 고쳐 주세요."
-RESULT_NOTICE = "사진에서 주소를 정확히 읽지 못했어요. 글자가 원래 문자와 같은지 확인해 주세요."
+
+# 결과 화면에서 '주의'가 된 이유. 같은 말을 여러 곳에서 되풀이하지 않도록
+# 설명은 이 한 덩어리에만 둔다 ('왜 위험한지' 목록에는 따로 넣지 않는다).
+RESULT_NOTICE = (
+    "사진 속 주소를 읽지 못해서 진짜인지 확인할 수 없었어요. "
+    "주소를 누르지 말고, 문자를 보낸 곳의 공식 앱이나 고객센터로 직접 확인하세요."
+)
 
 
 def has_broken_url(text: str) -> bool:
@@ -48,6 +54,20 @@ def suspect_lines(text: str) -> list:
     ]
 
 
+def suspect_spans(text: str) -> list:
+    """주소처럼 보이는 줄의 글자 위치 (시작, 끝)를 돌려준다.
+
+    결과 화면에서 원문에 형광펜을 칠할 때 쓴다.
+    """
+
+    spans, position = [], 0
+    for line in (text or "").split("\n"):
+        if URL_HEAD.search(line):
+            spans.append((position, position + len(line)))
+        position += len(line) + 1  # 줄바꿈 한 글자
+    return spans
+
+
 def line_segments(text: str) -> list:
     """줄 단위로 '표시할 조각 / 그냥 조각'을 만든다 (확인 화면 형광펜용)."""
 
@@ -60,9 +80,3 @@ def line_segments(text: str) -> list:
             pieces.append({"text": "\n", "mark": False})
         pieces.append({"text": line, "mark": index in marked})
     return pieces
-
-
-def hint_reason() -> dict:
-    """결과 화면에 덧붙일 설명 한 덩어리."""
-
-    return {"key": "broken_url", "title": HINT_TITLE, "body": HINT_BODY, "matches": []}

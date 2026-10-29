@@ -26,7 +26,8 @@ URL_HEAD = re.compile(r"(?:https?\s*[:：]?\s*/*|www\s*[.．]?)", re.IGNORECASE)
 
 # 위험 신호 검사 목록에서 '인터넷 주소' 줄에 쓸 말.
 # 규칙은 주소를 못 잡았지만 머리말은 보였으므로 "없음"도 "찾음"도 아니다.
-CHECK_UNSURE_LABEL = "있는 것 같음 (정확히 못 읽음)"
+# 목록에는 짧게만 쓰고, 왜 그런지는 결과 제목 아래 RESULT_NOTICE 한 곳에서 설명한다.
+CHECK_UNSURE_LABEL = "확인 필요"
 
 EDIT_NOTICE = "이 부분은 인터넷 주소 같아요. 사진과 다르면 고쳐 주세요."
 

@@ -266,6 +266,126 @@ function showGuidance(key) {
   el("guidance").hidden = false;
 }
 
+/* ---------- 소리로 듣기 (브라우저 내장 음성, 외부 서비스 없음) ---------- */
+
+/* 브라우저에 들어 있는 음성 합성만 쓴다. 글자가 바깥으로 나가지 않는다. */
+const speech = {
+  supported:
+    typeof window !== "undefined" &&
+    "speechSynthesis" in window &&
+    typeof window.SpeechSynthesisUtterance === "function",
+  speaking: false,
+  queued: 0,
+};
+
+function koreanVoice() {
+  const voices = window.speechSynthesis.getVoices() || [];
+  return voices.find((voice) => (voice.lang || "").toLowerCase().startsWith("ko")) || null;
+}
+
+/* 결과 제목, 제목 아래 안내, "왜 위험한지" 설명을 차례로 모은다.
+   원문에서 찾은 표현(깨진 주소 등)은 소리로 들으면 알아듣기 어려우므로 뺀다. */
+function spokenText() {
+  const parts = [el("result-title").textContent.trim()];
+
+  const notice = el("result-notice");
+  if (!notice.hidden && notice.textContent.trim()) {
+    parts.push(notice.textContent.trim());
+  }
+
+  document.querySelectorAll("#reasons li").forEach((item) => {
+    const title = item.querySelector(".reason-title");
+    const body = item.querySelector(".reason-body");
+    if (title) parts.push(title.textContent.trim());
+    if (body) parts.push(body.textContent.trim());
+  });
+
+  return parts.filter(Boolean);
+}
+
+/* 크롬은 긴 문장을 읽다가 중간에 멈춘다. 문장 단위로 끊어서 차례로 넘긴다. */
+function toChunks(parts) {
+  const chunks = [];
+  parts.forEach((part) => {
+    // 뒤돌아보기(lookbehind)는 구형 사파리에서 스크립트 전체를 깨뜨리므로 쓰지 않는다.
+    // 문장 끝 부호를 남긴 채로 끊기 위해 부호를 캡처해 다시 붙인다.
+    part
+      .split(/([.!?])\s+/)
+      .reduce((sentences, piece, index) => {
+        if (index % 2 === 0) sentences.push(piece);
+        else sentences[sentences.length - 1] += piece;
+        return sentences;
+      }, [])
+      .map((sentence) => sentence.trim())
+      .filter(Boolean)
+      .forEach((sentence) => {
+        if (sentence.length <= 120) {
+          chunks.push(sentence);
+          return;
+        }
+        for (let at = 0; at < sentence.length; at += 120) {
+          chunks.push(sentence.slice(at, at + 120));
+        }
+      });
+  });
+  return chunks;
+}
+
+function setSpeakingState(on) {
+  speech.speaking = on;
+  const button = el("speak");
+  button.setAttribute("aria-pressed", String(on));
+  el("speak-label").textContent = on ? "그만 듣기" : "소리로 듣기";
+}
+
+function stopSpeaking() {
+  if (!speech.supported) return;
+  speech.queued = 0;
+  window.speechSynthesis.cancel();
+  setSpeakingState(false);
+}
+
+function startSpeaking() {
+  const chunks = toChunks(spokenText());
+  if (!chunks.length) return;
+
+  const synth = window.speechSynthesis;
+  synth.cancel();
+
+  const voice = koreanVoice();
+  speech.queued = chunks.length;
+  setSpeakingState(true);
+
+  chunks.forEach((chunk) => {
+    const utterance = new SpeechSynthesisUtterance(chunk);
+    utterance.lang = "ko-KR";
+    utterance.rate = 0.95; // 조금 천천히
+    if (voice) utterance.voice = voice;
+    utterance.onend = () => {
+      speech.queued -= 1;
+      if (speech.queued <= 0) setSpeakingState(false);
+    };
+    utterance.onerror = () => stopSpeaking();
+    synth.speak(utterance);
+  });
+}
+
+function setupSpeech() {
+  const button = el("speak");
+  if (!speech.supported) {
+    button.hidden = true; // 지원하지 않는 브라우저에서는 아예 보이지 않는다
+    return;
+  }
+  button.hidden = false;
+  button.addEventListener("click", () => {
+    if (speech.speaking) stopSpeaking();
+    else startSpeaking();
+  });
+  // 크롬은 목소리 목록을 나중에 채우지만, 목소리는 읽기 시작할 때 고르므로
+  // 따로 기다릴 필요가 없다. 한국어 목소리가 없으면 lang 만 ko-KR 로 둔다.
+  window.addEventListener("beforeunload", stopSpeaking);
+}
+
 /* ---------- 검사 흐름 ---------- */
 
 function showError(message) {
@@ -288,6 +408,7 @@ function setBusy(busy) {
 }
 
 async function runCheck(text) {
+  stopSpeaking();
   state.text = text;
   el("result").hidden = true;
   el("ocr-edit").hidden = true;
@@ -416,6 +537,7 @@ function setupSamples() {
 
 async function init() {
   setupPrefs();
+  setupSpeech();
 
   el("check-form").addEventListener("submit", handleSubmit);
   el("ocr-confirm").addEventListener("click", () => {
@@ -434,6 +556,7 @@ async function init() {
     el("result").hidden = true;
     el("progress").hidden = true;
     el("ocr-edit").hidden = true;
+    stopSpeaking();
     el("actions-block").hidden = true;
     el("ocr-url-hint").hidden = true;
     state.level = null;

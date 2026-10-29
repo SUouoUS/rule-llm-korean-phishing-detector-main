@@ -480,3 +480,32 @@ html[data-contrast="high"] .ocr-preview mark {
   background: #ffe600;
   border-bottom-width: 3px;
 }
+
+/* 소리로 듣기 */
+.speak {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font: inherit;
+  font-weight: 700;
+  min-height: 3rem;
+  padding: 0.6rem 1.2rem;
+  margin: 0 0 1.4rem;
+  background: var(--surface);
+  color: var(--accent);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.speak:hover { background: #eef2fb; }
+.speak[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.speak-icon {
+  width: 1.4rem;
+  height: 1.4rem;
+  fill: currentColor;
+  flex: 0 0 auto;
+}

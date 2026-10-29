@@ -34,6 +34,23 @@ USE_SHORTENER_HOSTS = False
 # 5) TLD 표기 변형: 점 대체 + 문자 변형 (Train 미탐 103 + 47건)
 USE_TLD_VARIANTS = False
 
+# --------------------------------------------------
+# 일반화 TLD 옵션 (2026-10-29 추가) — 반박 검증용
+#
+# 반박: "TLD를 하나씩 등록하지 말고 글자.글자 형태를 전부 URL로 보면
+#        .sale도 .guru도 잡히지 않나? 못 잡은 건 열거의 한계가 아니라
+#        정규식을 좁게 짠 탓 아닌가?"
+#
+# 이 옵션으로 실험해서 정한다.
+#   오탐이 거의 안 늘면  → "규칙은 열거만 가능하다"는 논거를 버린다.
+#   오탐이 크게 늘면    → "넓히면 오탐이 생기니 문맥을 읽는 모델이 필요하다".
+# 논거를 지키려고 실험을 피하지 않는다 (앞선 주석에서 이 실험을 회피한 것은 잘못).
+# --------------------------------------------------
+# 6) 스킴 없는 주소를 TLD 종류와 무관하게 받는다 (경로 없어도 됨)
+USE_GENERAL_TLD = False
+# 7) 같은 규칙이지만 경로(/...)가 있을 때만 — 오탐을 줄이는 변형
+USE_GENERAL_TLD_STRICT = False
+
 # 각 택배사 공식 홈페이지에서 확인한 도메인만 넣는다 (데이터를 보고 추가하지 않음).
 # 하위 도메인(www.coupang.com 등)은 허용, 흉내 낸 주소(coupang.com.evil.xyz)는 허용하지 않음.
 #
@@ -108,7 +125,7 @@ HANGUL_DOMAIN_PATTERN = re.compile(
 )
 
 # 4) 스킴 없는 단축 URL. Train 미탐에 나온 호스트만 열거한다 (.ly가 219회).
-#    TLD를 가리지 않는 일반 규칙을 쓰지 않는 이유는 위 옵션 주석 참고.
+#    TLD를 가리지 않는 일반 규칙은 옵션 6/7로 따로 두고 실험해서 비교한다.
 SHORTENER_HOST_PATTERN = re.compile(
     r"\b(?:bit|cutt|vo|goo|tiny|buly|dooo|han|kko|is|lnk|me2)"
     r"\s?\.\s?(?:ly|la|gl|gd|us|cc|do|kr)"
@@ -137,6 +154,24 @@ _DOT_SPELLING = r"(?:\s?[.．。，､·ㆍ*◘▶☞◇\[\(]\s?|[\[\(]?\s?[쩜�
 # 뒤에 한글이 더 붙으면 "컴퓨터", "콤비", "넷플릭스" 같은 일반 단어이므로 제외한다.
 TLD_VARIANT_PATTERN = re.compile(
     rf"[A-Za-z0-9가-힣*_-]{{2,}}{_DOT_SPELLING}{_TLD_SPELLING}(?![가-힣])",
+    re.IGNORECASE,
+)
+
+# 6) 일반화 TLD: TLD 종류를 가리지 않고 "이름.글자" 꼴을 전부 주소로 본다.
+#    파일 확장자(사진.jpg, 보고서.pdf)를 걸러내지 않은 날것 그대로의 규칙이다 —
+#    오탐이 실제로 얼마나 생기는지 보는 것이 실험의 목적이므로 미리 손질하지 않는다.
+GENERAL_TLD_PATTERN = re.compile(
+    r"\b[A-Za-z0-9가-힣][A-Za-z0-9가-힣_-]*"
+    r"\.[A-Za-z]{2,10}\b"
+    r"(?:/[^\s]*)?",
+    re.IGNORECASE,
+)
+
+# 7) 같은 규칙이지만 경로(/...)가 반드시 있어야 한다. 오탐을 줄이는 변형.
+GENERAL_TLD_STRICT_PATTERN = re.compile(
+    r"\b[A-Za-z0-9가-힣][A-Za-z0-9가-힣_-]*"
+    r"\.[A-Za-z]{2,10}"
+    r"/[^\s]+",
     re.IGNORECASE,
 )
 
@@ -237,6 +272,8 @@ def detect_url(text: str) -> dict:
         (USE_HANGUL_DOMAIN, HANGUL_DOMAIN_PATTERN),
         (USE_SHORTENER_HOSTS, SHORTENER_HOST_PATTERN),
         (USE_TLD_VARIANTS, TLD_VARIANT_PATTERN),
+        (USE_GENERAL_TLD, GENERAL_TLD_PATTERN),
+        (USE_GENERAL_TLD_STRICT, GENERAL_TLD_STRICT_PATTERN),
     ):
         if enabled:
             matches += [

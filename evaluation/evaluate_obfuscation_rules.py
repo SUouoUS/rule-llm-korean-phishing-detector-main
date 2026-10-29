@@ -43,20 +43,44 @@ TRAIN_PATH = PROJECT_ROOT / "data" / "processed" / "train.csv"
 OUTPUT_PATH = PROJECT_ROOT / "evaluation" / "obfuscation_rules.csv"
 TIER_PATH = PROJECT_ROOT / "evaluation" / "obfuscation_rules_tiers.csv"
 
-# (한글 도메인, 단축 URL, TLD 변형)
+FLAGS = (
+    "USE_HANGUL_DOMAIN",
+    "USE_SHORTENER_HOSTS",
+    "USE_TLD_VARIANTS",
+    "USE_GENERAL_TLD",
+    "USE_GENERAL_TLD_STRICT",
+)
+
+# 켤 플래그 이름만 적는다. 나머지는 꺼진다.
 CONFIGS = {
-    "base": (False, False, False),
-    "hangul": (True, False, False),
-    "shortener": (False, True, False),
-    "tldvar": (False, False, True),
-    "all": (True, True, True),
+    "base": (),
+    # Train 미탐에서 도출한 열거형 규칙
+    "hangul": ("USE_HANGUL_DOMAIN",),
+    "shortener": ("USE_SHORTENER_HOSTS",),
+    "tldvar": ("USE_TLD_VARIANTS",),
+    "enumerated": ("USE_HANGUL_DOMAIN", "USE_SHORTENER_HOSTS", "USE_TLD_VARIANTS"),
+    # 반박 검증: TLD를 가리지 않는 일반 규칙
+    "general": ("USE_GENERAL_TLD",),
+    "general_strict": ("USE_GENERAL_TLD_STRICT",),
+    # 열거형 + 일반화를 같이
+    "enum+general": (
+        "USE_HANGUL_DOMAIN",
+        "USE_SHORTENER_HOSTS",
+        "USE_TLD_VARIANTS",
+        "USE_GENERAL_TLD",
+    ),
+    "enum+strict": (
+        "USE_HANGUL_DOMAIN",
+        "USE_SHORTENER_HOSTS",
+        "USE_TLD_VARIANTS",
+        "USE_GENERAL_TLD_STRICT",
+    ),
 }
 
 
-def set_config(hangul: bool, shortener: bool, tldvar: bool) -> None:
-    rule_detector.USE_HANGUL_DOMAIN = hangul
-    rule_detector.USE_SHORTENER_HOSTS = shortener
-    rule_detector.USE_TLD_VARIANTS = tldvar
+def set_config(enabled: tuple = ()) -> None:
+    for flag in FLAGS:
+        setattr(rule_detector, flag, flag in enabled)
 
 
 def rule_predict(df: pd.DataFrame) -> pd.Series:
@@ -89,7 +113,7 @@ def tier_table(df: pd.DataFrame, rule_pred: pd.Series) -> dict:
 def evaluate(name: str, df: pd.DataFrame, with_llm: bool) -> tuple:
     rows, tiers = [], []
     for config, flags in CONFIGS.items():
-        set_config(*flags)
+        set_config(flags)
         rule_pred = rule_predict(df)
         label = df["label"].astype(int)
 
@@ -108,7 +132,7 @@ def evaluate(name: str, df: pd.DataFrame, with_llm: bool) -> tuple:
             tier.update(tier_table(df, rule_pred))
             tiers.append(tier)
 
-    set_config(False, False, False)
+    set_config()
     return rows, tiers
 
 
@@ -160,16 +184,28 @@ def main() -> None:
         print(f"\n-- {dataset}")
         print(part.drop(columns=["dataset"]).round(4).to_string(index=False))
 
-    base = result[(result.dataset == "validation") & (result.config == "base") & (result.model == "Rule")].iloc[0]
-    best = result[(result.dataset == "validation") & (result.config == "all") & (result.model == "Rule")].iloc[0]
-    print("\n=== 판단 기준 ===")
-    print(f"Validation Rule Recall : {base.recall:.4f} → {best.recall:.4f}  ({best.recall - base.recall:+.4f})")
-    print(f"Validation Rule FPR    : {base.fpr:.4f} → {best.fpr:.4f}  ({best.fpr - base.fpr:+.4f})")
-    print(f"Validation Rule 미탐   : {int(base.fn)}건 → {int(best.fn)}건  (잔존 격차)")
+    print("\n=== 반박 검증: 일반화가 오탐을 늘리는가 ===")
+    val = result[(result.dataset == "validation") & (result.model == "Rule")].set_index("config")
+    dev = result[(result.dataset == "delivery_dev") & (result.model == "Rule")].set_index("config")
+    print(f"{'config':16s} {'Recall':>8s} {'FPR':>8s} {'FP':>5s} {'misses':>7s} {'delivFP':>8s}")
+    for config in CONFIGS:
+        v, d = val.loc[config], dev.loc[config]
+        print(f"{config:16s} {v.recall:8.4f} {v.fpr:8.4f} {int(v.fp):5d} {int(v.fn):7d} {int(d.fp):8d}")
+
+    b, e = val.loc["base"], val.loc["enumerated"]
+    g, t = val.loc["general"], val.loc["general_strict"]
+    for name, row, key in (
+        ("기준 base         ", b, "base"),
+        ("열거형 enumerated ", e, "enumerated"),
+        ("일반화 general    ", g, "general"),
+        ("일반화+경로 strict", t, "general_strict"),
+    ):
+        print(f"{name}  Recall {row.recall:.4f}  오탐 {int(row.fp):3d}  택배오탐 {int(dev.loc[key].fp)}")
     print(
-        "\nFPR 상승폭이 감당 가능하고 택배 오탐이 0을 유지하면 Test 1회 평가로 넘어간다.\n"
-        "Test는 LLM 재호출이 필요 없다 (2,383건 전부에 LLM 판단이 저장돼 있음)."
+        "\n판단: 일반화가 오탐을 거의 안 늘리면 '규칙은 열거만 가능하다'는 논거를 버린다.\n"
+        "      크게 늘리면 '넓히면 오탐이 생기니 문맥을 읽는 모델이 필요하다'가 된다."
     )
+
     print(f"\n저장: {OUTPUT_PATH}\n      {TIER_PATH}")
 
 

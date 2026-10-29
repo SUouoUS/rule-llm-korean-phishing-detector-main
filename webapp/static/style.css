@@ -49,6 +49,7 @@ html { font-size: var(--base); }
 
 body {
   margin: 0;
+  overflow-x: hidden;
   background: var(--bg);
   color: var(--ink);
   font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", system-ui, sans-serif;
@@ -69,8 +70,11 @@ body {
   border: 3px solid var(--accent);
 }
 
-/* 상단 */
+/* 상단 — 파란 줄은 화면 전체 너비로 간다.
+   긴 주소가 줄바꿈 없이 들어오면 가로 스크롤이 생기면서 줄이 중간에 끊겨 보이므로,
+   아래 overflow-wrap 규칙들과 함께 봐야 한다. */
 .topbar {
+  width: 100%;
   background: var(--surface);
   border-bottom: 3px solid var(--accent);
 }
@@ -340,6 +344,7 @@ button.secondary:hover { background: #eef2fb; }
 
 .message-view {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   padding: 1rem;
   background: #fbfbfc;
   border: 1px solid var(--line);
@@ -441,4 +446,32 @@ html[data-contrast="high"] .guidance { background: #fff; }
   h1 { font-size: 1.35rem; }
   .topbar-inner { padding: 0.7rem 1rem; }
   .verdict { flex-direction: column; gap: 0.6rem; }
+}
+
+/* 긴 주소가 가로 스크롤을 만들지 않게 한다 (파란 줄이 끊겨 보이는 원인) */
+.admin-note code,
+.reason-matches span,
+.ocr-preview {
+  overflow-wrap: anywhere;
+}
+
+/* 사진에서 읽은 글자 미리보기 (주소처럼 보이는 줄에 형광펜) */
+.ocr-preview {
+  white-space: pre-wrap;
+  padding: 1rem;
+  margin: 0 0 1rem;
+  background: #fbfbfc;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.ocr-preview mark {
+  background: #fff1a8;
+  color: var(--ink);
+  padding: 0 0.1em;
+  font-weight: 700;
+  border-bottom: 2px solid #c9a200;
+}
+html[data-contrast="high"] .ocr-preview mark {
+  background: #ffe600;
+  border-bottom-width: 3px;
 }

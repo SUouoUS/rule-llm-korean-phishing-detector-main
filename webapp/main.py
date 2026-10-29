@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 from evaluation.evaluate_rule_thresholds import predict_score
 from hybrid.detector import RULE_THRESHOLD
 from llm.detector import detect_with_llm
-from webapp import ocr
+from webapp import ocr, url_hints
 from webapp.actions import ACTIONS, action_list
 from webapp.explain import CAUTION_ONLY_BODY, inspect
 from webapp.rules_setup import apply_final_config
@@ -72,6 +72,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 class TextRequest(BaseModel):
     text: str = Field(default="")
+    # 사진에서 읽은 글자인지. 참일 때만 '깨진 주소' 보정을 적용한다 (webapp/url_hints.py).
+    from_image: bool = Field(default=False)
 
 
 def _easy_error(message: str, status: int = 400) -> JSONResponse:
@@ -149,11 +151,16 @@ async def read_image(image: UploadFile = File(...)):
             "문자를 직접 붙여 넣어 주세요."
         )
 
+    broken = url_hints.has_broken_url(result["text"])
     return {
         "text": result["text"],
         "line_count": result["line_count"],
         "mean_confidence": result["mean_confidence"],
         "notice": "읽은 글자가 틀릴 수 있어요. 아래에서 고친 뒤 검사하기를 눌러 주세요.",
+        # 주소처럼 보이는 줄을 형광펜으로 보여 주고 고치도록 안내한다.
+        "url_hint": broken,
+        "url_hint_notice": url_hints.EDIT_NOTICE if broken else None,
+        "segments": url_hints.line_segments(result["text"]) if broken else None,
     }
 
 
@@ -169,17 +176,45 @@ def check_rule(request: TextRequest):
     detail = inspect(text)
     needs_llm = score < RULE_THRESHOLD
 
+    # 사진 입력일 때만: 주소 규칙이 못 잡았는데 https/www 가 보이면 알려 준다.
+    url_found = any(check["found"] for check in detail["checks"] if check["key"] == "url")
+    broken_url = request.from_image and not url_found and url_hints.has_broken_url(text)
+
+    reasons = list(detail["reasons"])
+    if broken_url:
+        reasons.append(url_hints.hint_reason())
+
     payload = {
         "text": text,
         "rule_score": score,
         "rule_positive": not needs_llm,
         "needs_llm": needs_llm,
         "checks": detail["checks"],
-        "reasons": detail["reasons"],
+        "reasons": reasons,
         "segments": detail["segments"],
+        "broken_url": broken_url,
+        "notice": url_hints.RESULT_NOTICE if broken_url else None,
     }
     if not needs_llm:
         payload["verdict"] = VERDICTS["danger"]
+    return payload
+
+
+def _with_broken_url(payload: dict, text: str, from_image: bool) -> dict:
+    """사진 입력에서 주소가 깨져 보이면, '신호 없음'을 '주의'까지만 올린다.
+
+    '위험'으로 올리지는 않는다. 정상 택배 알림 사진도 주소가 깨질 수 있고, 그때는
+    공식 도메인 허용이 동작할 수 없어 애먼 문자를 위험으로 몰 수 있기 때문이다.
+    """
+
+    if not (from_image and url_hints.has_broken_url(text)):
+        return payload
+
+    payload["broken_url"] = True
+    if payload["verdict"]["level"] == "clear":
+        payload["verdict"] = VERDICTS["caution"]
+    payload.setdefault("reasons", []).append(url_hints.hint_reason())
+    payload["notice"] = url_hints.RESULT_NOTICE
     return payload
 
 
@@ -191,43 +226,54 @@ def check_llm(request: TextRequest):
     if isinstance(text, JSONResponse):
         return text
 
+    def finish(payload: dict) -> dict:
+        return _with_broken_url(payload, text, request.from_image)
+
     try:
         result = detect_with_llm(text)
     except Exception:
         # Ollama가 꺼져 있거나 모델이 없을 때. 숨기지 않고 정직하게 알린다.
-        return {
-            "available": False,
-            "verdict": VERDICTS["clear"],
-            "notice": (
-                "추가 확인을 하지 못했어요. 위험 신호는 찾지 못했지만, "
-                "한 번 더 꼼꼼히 보는 과정을 건너뛰었어요."
-            ),
-        }
+        return finish(
+            {
+                "available": False,
+                "verdict": VERDICTS["clear"],
+                "reasons": [],
+                "notice": (
+                    "추가 확인을 하지 못했어요. 위험 신호는 찾지 못했지만, "
+                    "한 번 더 꼼꼼히 보는 과정을 건너뛰었어요."
+                ),
+            }
+        )
 
     label = result.get("label")
     if label not in (0, 1):
-        return {
-            "available": False,
-            "verdict": VERDICTS["clear"],
-            "notice": (
-                "추가 확인이 끝까지 되지 않았어요. 위험 신호는 찾지 못했지만, "
-                "한 번 더 꼼꼼히 보는 과정을 마치지 못했어요."
-            ),
-        }
+        return finish(
+            {
+                "available": False,
+                "verdict": VERDICTS["clear"],
+                "reasons": [],
+                "notice": (
+                    "추가 확인이 끝까지 되지 않았어요. 위험 신호는 찾지 못했지만, "
+                    "한 번 더 꼼꼼히 보는 과정을 마치지 못했어요."
+                ),
+            }
+        )
 
     if label == 1:
-        return {
-            "available": True,
-            "verdict": VERDICTS["caution"],
-            # LLM의 reason/evidence는 쓰지 않는다 (webapp/explain.py 설명 참고).
-            "reasons": [
-                {
-                    "key": "context",
-                    "title": "걸린 표현은 없지만 문맥이 의심스러워요",
-                    "body": CAUTION_ONLY_BODY,
-                    "matches": [],
-                }
-            ],
-        }
+        return finish(
+            {
+                "available": True,
+                "verdict": VERDICTS["caution"],
+                # LLM의 reason/evidence는 쓰지 않는다 (webapp/explain.py 설명 참고).
+                "reasons": [
+                    {
+                        "key": "context",
+                        "title": "걸린 표현은 없지만 문맥이 의심스러워요",
+                        "body": CAUTION_ONLY_BODY,
+                        "matches": [],
+                    }
+                ],
+            }
+        )
 
-    return {"available": True, "verdict": VERDICTS["clear"], "reasons": []}
+    return finish({"available": True, "verdict": VERDICTS["clear"], "reasons": []})

@@ -23,6 +23,7 @@ const state = {
   text: "",
   busy: false,
   level: null,
+  fromImage: false,
 };
 
 /* ---------- 글씨 크기 / 고대비 (저장 실패해도 동작) ---------- */
@@ -126,8 +127,7 @@ async function postImage(file) {
 
 /* ---------- 결과 그리기 ---------- */
 
-function renderMessage(segments) {
-  const view = el("message-view");
+function paintSegments(view, segments) {
   view.textContent = "";
   segments.forEach((piece) => {
     if (piece.mark) {
@@ -138,6 +138,10 @@ function renderMessage(segments) {
       view.appendChild(document.createTextNode(piece.text));
     }
   });
+}
+
+function renderMessage(segments) {
+  paintSegments(el("message-view"), segments);
 }
 
 function renderChecks(checks) {
@@ -276,14 +280,16 @@ async function runCheck(text) {
   try {
     setStep("step-rule", "검사하는 중", "run");
     say("위험 신호를 찾고 있어요.");
-    const rule = await postJson("/api/rule", { text });
+    const rule = await postJson("/api/rule", { text, from_image: state.fromImage });
 
     setStep("step-rule", "끝", "done");
     renderMessage(rule.segments);
     renderChecks(rule.checks);
 
     if (!rule.needs_llm) {
-      renderVerdict(rule.verdict, null);
+      // 위험 신호를 이미 찾았으므로 3단계를 부르지 않는다. 그 사실을 그대로 쓴다.
+      setStep("step-llm", "필요 없음 (위험 신호를 이미 찾았어요)", "skip", true);
+      renderVerdict(rule.verdict, rule.notice || null);
       renderReasons(rule.reasons);
       say("검사를 마쳤어요.");
       finish();
@@ -294,7 +300,7 @@ async function runCheck(text) {
     setStep("step-llm", "한 번 더 꼼꼼히 보고 있어요", "run", true);
     say("위험 신호는 못 찾았어요. 한 번 더 꼼꼼히 보고 있어요. 몇 초 걸립니다.");
 
-    const llm = await postJson("/api/llm", { text });
+    const llm = await postJson("/api/llm", { text, from_image: state.fromImage });
     setStep("step-llm", llm.available ? "끝" : "건너뜀", llm.available ? "done" : "skip");
     renderVerdict(llm.verdict, llm.notice || null);
     renderReasons(llm.reasons || []);
@@ -325,6 +331,7 @@ async function handleSubmit(event) {
   const typed = el("message").value.trim();
 
   if (file) {
+    state.fromImage = true;
     showProgress(true);
     setBusy(true);
     setStep("step-ocr", "글자를 읽고 있어요", "run");
@@ -334,6 +341,16 @@ async function handleSubmit(event) {
       setStep("step-ocr", "끝", "done");
       el("ocr-notice").textContent = result.notice;
       el("ocr-text").value = result.text;
+
+      // 주소처럼 보이는 줄이 있으면 형광펜으로 보여 주고 고치도록 안내한다.
+      if (result.url_hint && result.segments) {
+        el("ocr-url-notice").textContent = result.url_hint_notice;
+        paintSegments(el("ocr-preview"), result.segments);
+        el("ocr-url-hint").hidden = false;
+      } else {
+        el("ocr-url-hint").hidden = true;
+      }
+
       el("ocr-edit").hidden = false;
       el("ocr-text").focus();
       say("읽은 글자를 확인해 주세요.");
@@ -359,6 +376,8 @@ async function handleSubmit(event) {
     return;
   }
 
+  // 직접 붙여 넣은 글자에는 '깨진 주소' 보정을 쓰지 않는다.
+  state.fromImage = false;
   showProgress(false);
   runCheck(typed);
 }
@@ -400,7 +419,9 @@ async function init() {
     el("progress").hidden = true;
     el("ocr-edit").hidden = true;
     el("actions-block").hidden = true;
+    el("ocr-url-hint").hidden = true;
     state.level = null;
+    state.fromImage = false;
     clearError();
     el("message").focus();
     window.scrollTo({ top: 0, behavior: "smooth" });

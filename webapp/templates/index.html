@@ -96,6 +96,13 @@
   <section class="panel" id="ocr-edit" hidden aria-labelledby="ocr-edit-title">
     <h2 id="ocr-edit-title">읽은 글자를 확인해 주세요</h2>
     <p class="notice" id="ocr-notice"></p>
+
+    <!-- 주소처럼 보이는 줄이 있을 때만 보여 준다 -->
+    <div id="ocr-url-hint" hidden>
+      <p class="notice" id="ocr-url-notice"></p>
+      <div class="ocr-preview" id="ocr-preview"></div>
+    </div>
+
     <label class="field-label" for="ocr-text">사진에서 읽은 글자</label>
     <p class="field-help" id="ocr-help">틀린 글자가 있으면 고쳐 주세요. 다 고치면 아래 단추를 누르세요.</p>
     <textarea id="ocr-text" rows="7" aria-describedby="ocr-help"></textarea>

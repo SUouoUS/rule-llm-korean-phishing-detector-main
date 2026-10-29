@@ -14,12 +14,24 @@ SAMPLES = [
         "text": "엄마 나 오늘 좀 늦어요. 저녁은 먹고 갈게요. 기다리지 마세요.",
     },
     {
+        # 공식 도메인 허용(USE_DOMAIN_ALLOWLIST)이 켜져 있는지 확인하는 샘플.
+        # 주소가 들어 있는데도 0점이어야 한다.
         "key": "delivery",
-        "label": "택배 알림",
+        "label": "택배 알림 (배송 완료)",
         "text": (
             "[Web발신]\n"
             "[쿠팡] 로켓배송 상품을 문 앞에 두었습니다.\n"
             "사진 보기: https://coupang.com/photo12"
+        ),
+    },
+    {
+        # 같은 확인을 다른 모양의 문자로 한 번 더. 역시 0점이어야 한다.
+        "key": "delivery_shipping",
+        "label": "택배 알림 (배송 출발)",
+        "text": (
+            "[Web발신]\n"
+            "[쿠팡] 주문하신 상품이 오늘 출발했습니다.\n"
+            "배송 조회: https://www.coupang.com/np/orders"
         ),
     },
     {
